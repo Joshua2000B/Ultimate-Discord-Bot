@@ -158,6 +158,9 @@ CREATE TABLE IF NOT EXISTS "file" (
     def insertPartialEmoji(self,emoji_id,name,is_animated,file_id):
         self.cursor.execute('''INSERT INTO emoji(emoji_id,name,is_animated,file_id) VALUES(?,?,?,?)''',
                             (emoji_id,name,is_animated,file_id))
+    def insertUnicodeEmoji(self,emoji_id,name):
+        self.cursor.execute('''INSERT INTO emoji(emoji_id,name,is_animated) VALUES(?,?,0)''',
+                            (emoji_id,name))
     def insertGuild(self,guild_id,name,file_id):
         self.cursor.execute('''INSERT INTO guild(guild_id,name,file_id) VALUES(?,?,?)''',
                             (guild_id,name,file_id))

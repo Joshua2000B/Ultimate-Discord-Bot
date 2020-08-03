@@ -187,6 +187,9 @@ class MyClient(discord.Client):
             if(not self.db.emojiExists(emoji.id)):
                 self.db.insertEmoji(emoji.id,emoji.guild_id,emoji.name,int(emoji.animated),next_file_id)
 
+    async def addUnicodeEmoji(self,emoji):
+        self.db.insertUnicodeEmoji(ord(emoji),emoji)
+
     async def addReaction(self,reaction):
         # Add Guild
         if(not self.db.guildExists(reaction.message.guild.id)):
@@ -198,15 +201,28 @@ class MyClient(discord.Client):
         if(not self.db.messageExists(reaction.message.id)):
             await self.addMessage(reaction.message)
         # Add Emoji
-        if(not self.db.emojiExists(reaction.emoji.id)):
-            await self.addEmoji(reaction.emoji)
+        # Check if emoji is a string
+        if(type(reaction.emoji) == str):
+            #print("Unicode")
+            #print(ord(reaction.emoji))
+            if(not self.db.emojiExists(ord(reaction.emoji))):
+                await self.addUnicodeEmoji(reaction.emoji)
+        else:
+            #print("Custom")
+            #print(reaction.emoji.id,reaction.emoji.name)
+            if(not self.db.emojiExists(reaction.emoji.id)):
+                await self.addEmoji(reaction.emoji)
         async for user in reaction.users():
             # Add User
             if(not self.db.userExists(user.id)):
                 await self.addUser(user)
             # Add Reaction - note, the if is needed because of how reactions are stored
-            if(not self.db.reactionExists(reaction.emoji.id,user.id,reaction.message.id)):
-                self.db.insertReaction(reaction.emoji.id,user.id,reaction.message.id)
+            if(type(reaction.emoji) == str):
+                if(not self.db.reactionExists(ord(reaction.emoji),user.id,reaction.message.id)):
+                    self.db.insertReaction(ord(reaction.emoji),user.id,reaction.message.id)
+            else:
+                if(not self.db.reactionExists(reaction.emoji.id,user.id,reaction.message.id)):
+                    self.db.insertReaction(reaction.emoji.id,user.id,reaction.message.id)
 
     async def addRawReaction(self,raw_reaction):
         # Add Guild
@@ -219,8 +235,13 @@ class MyClient(discord.Client):
         #if(not self.db.messageExists(raw_reaction.message_id)):
         #
         # Add Emoji
-        if(not self.db.emojiExists(raw_reaction.emoji.id) and self.db.messageExists(raw_reaction.message_id)):
-            await self.addEmoji(raw_reaction.emoji)
+        if(raw_reaction.emoji.is_unicode_emoji()):
+            if(not self.db.emojiExists(ord(raw_reaction.emoji.name)) and self.db.messageExists(raw_reaction.message_id)):
+                await self.addUnicodeEmoji(raw_reaction.emoji.name)
+        else:
+            if(not self.db.emojiExists(raw_reaction.emoji.id) and self.db.messageExists(raw_reaction.message_id)):
+                await self.addEmoji(raw_reaction.emoji)
+        # Add Reaction
         if(not self.db.reactionExists(raw_reaction.emoji.id,raw_reaction.user_id,raw_reaction.message_id)):
             self.db.insertReaction(raw_reaction.emoji.id,raw_reaction.user_id,raw_reaction.message_id)
     
