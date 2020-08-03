@@ -148,8 +148,14 @@ class MyClient(discord.Client):
         # Add reactions
         for reaction in message.reactions:
             await self.addReaction(reaction)
+        # Add Attachments
+        for attachment in message.attachments:
+            filename = attachment.filename.split('.')
+            self.db.insertFile(self.db.getMaxFileID()+1,'attachment',message.id,".".join(filename[:-1]),filename[-1],await attachment.read())
         # Update channel last message
         self.db.updateChannelLastMessage(message.channel.id,str(message.created_at))
+        # Update user last message
+        self.db.updateMemberLastMessage(message.author.id,message.guild.id,str(message.created_at))
 
     async def addDMMessage(self,message):
         # Add DM Message

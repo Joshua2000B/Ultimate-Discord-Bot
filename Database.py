@@ -196,5 +196,8 @@ CREATE TABLE IF NOT EXISTS "file" (
     def updateChannelLastMessage(self,channel_id,message_time):
         self.db.execute('''UPDATE text_channel set last_message = ? WHERE channel_id = ?''',
                         (message_time,channel_id))
+    def updateMemberLastMessage(self,user_id,guild_id,message_time):
+        self.db.execute('''UPDATE member set last_message = ? WHERE user_id = ? AND guild_id = ?''',
+                        (message_time,user_id,guild_id))
 
             
