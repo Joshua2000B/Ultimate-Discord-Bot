@@ -1,3 +1,9 @@
+# TOKEN
+TOKEN.txt
+
+# SQL
+*.db3
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
