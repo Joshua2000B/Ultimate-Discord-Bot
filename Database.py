@@ -8,18 +8,21 @@ class DiscordDB:
 
         self.cursor.execute('''
 CREATE TABLE IF NOT EXISTS "guild" (
-    "guild_id"	INTEGER,
-    "name"	TEXT,
-    PRIMARY KEY("guild_id")
+	"guild_id"	INTEGER,
+	"name"	TEXT,
+	"file_id"	INTEGER,
+	FOREIGN KEY("file_id") REFERENCES "file",
+	PRIMARY KEY("guild_id")
 )''')
         self.cursor.execute('''
 CREATE TABLE IF NOT EXISTS "user" (
-    "user_id"	INTEGER,
-    "username"	TEXT,
-    "discriminator"	INTEGER,
-    "is_bot"	INTEGER,
-    "avatar"	BLOB,
-    PRIMARY KEY("user_id")
+	"user_id"	INTEGER,
+	"username"	TEXT,
+	"discriminator"	INTEGER,
+	"is_bot"	INTEGER,
+	"file_id"	INTEGER,
+	PRIMARY KEY("user_id"),
+	FOREIGN KEY("file_id") REFERENCES "file"
 )''')
         self.cursor.execute('''
 CREATE TABLE IF NOT EXISTS "text_channel" (
@@ -61,9 +64,10 @@ CREATE TABLE IF NOT EXISTS "message" (
 CREATE TABLE IF NOT EXISTS "emoji" (
 	"emoji_id"	INTEGER,
 	"guild_id"	INTEGER,
+	"file_id"	INTEGER,
 	"name"	TEXT,
 	"is_animated"	INTEGER,
-	"file"	BLOB,
+	FOREIGN KEY("file_id") REFERENCES "file",
 	PRIMARY KEY("emoji_id"),
 	FOREIGN KEY("guild_id") REFERENCES "guild"
 )''')
@@ -98,6 +102,16 @@ CREATE TABLE IF NOT EXISTS "reaction" (
     FOREIGN KEY("emoji_id") REFERENCES "emoji",
     PRIMARY KEY("emoji_id","user_id","message_id")
 )''')
+        self.cursor.execute('''
+CREATE TABLE IF NOT EXISTS "file" (
+	"file_id"	INTEGER,
+	"type"	TEXT,
+	"reference_id"	INTEGER,
+	"file_name"	TEXT,
+	"file_type"	TEXT,
+	"data"	BLOB,
+	PRIMARY KEY("file_id")
+)''')
 
     def start(self):
         self.cursor.execute("BEGIN")
@@ -129,20 +143,24 @@ CREATE TABLE IF NOT EXISTS "reaction" (
     def reactionExists(self,emoji_id,user_id,message_id):
         return len(self.cursor.execute('''SELECT emoji_id FROM reaction WHERE emoji_id = ? AND user_id = ? AND message_id = ?''',
                                        (emoji_id,user_id,message_id,)).fetchall()) > 0
+    def fileExists(self,type,reference_id,data):
+        return len(self.cursor.execute('''SELECT file_id FROM file WHERE type = ? AND reference_id = ? AND data = ?''',
+                                       (type,reference_id,data,)).fetchall()) > 0
+
 
 
     def insertDMMessage(self,message_id,user_id,content,sent,has_file):
         self.cursor.execute('''INSERT INTO dm_message(message_id,user_id,content,sent,was_deleted,has_file) VALUES(?,?,?,?,0,?)''',
                             (message_id,user_id,content,sent,has_file))
-    def insertEmoji(self,emoji_id,guild_id,name,is_animated,file):
-        self.cursor.execute('''INSERT INTO emoji(emoji_id,guild_id,name,is_animated,file) VALUES(?,?,?,?,?)''',
-                            (emoji_id,guild_id,name,is_animated,file))
-    def insertPartialEmoji(self,emoji_id,name,is_animated,file):
-        self.cursor.execute('''INSERT INTO emoji(emoji_id,name,is_animated,file) VALUES(?,?,?,?)''',
-                            (emoji_id,name,is_animated,file))
-    def insertGuild(self,guild_id,name):
-        self.cursor.execute('''INSERT INTO guild(guild_id,name) VALUES(?,?)''',
-                            (guild_id,name))
+    def insertEmoji(self,emoji_id,guild_id,name,is_animated,file_id):
+        self.cursor.execute('''INSERT INTO emoji(emoji_id,guild_id,name,is_animated,file_id) VALUES(?,?,?,?,?)''',
+                            (emoji_id,guild_id,name,is_animated,file_id))
+    def insertPartialEmoji(self,emoji_id,name,is_animated,file_id):
+        self.cursor.execute('''INSERT INTO emoji(emoji_id,name,is_animated,file_id) VALUES(?,?,?,?)''',
+                            (emoji_id,name,is_animated,file_id))
+    def insertGuild(self,guild_id,name,file_id):
+        self.cursor.execute('''INSERT INTO guild(guild_id,name,file_id) VALUES(?,?,?)''',
+                            (guild_id,name,file_id))
     def insertMember(self,user_id,guild_id,nickname):
         self.cursor.execute('''INSERT INTO member(user_id,guild_id,nickname,last_warning,last_message) VALUES(?,?,?,null,null)''',
                             (user_id,guild_id,nickname))
@@ -155,16 +173,28 @@ CREATE TABLE IF NOT EXISTS "reaction" (
     def insertTextChannel(self,channel_id,guild_id,name):
         self.cursor.execute('''INSERT INTO text_channel(channel_id,guild_id,name,last_message) VALUES(?,?,?,null)''',
                             (channel_id,guild_id,name))
-    def insertUser(self,user_id,username,discriminator,is_bot,avatar):
-        self.cursor.execute('''INSERT INTO user(user_id,username,discriminator,is_bot,avatar) VALUES(?,?,?,?,?)''',
-                            (user_id,username,discriminator,is_bot,avatar))
+    def insertUser(self,user_id,username,discriminator,is_bot,file_id):
+        self.cursor.execute('''INSERT INTO user(user_id,username,discriminator,is_bot,file_id) VALUES(?,?,?,?,?)''',
+                            (user_id,username,discriminator,is_bot,file_id))
     def insertWarning(self,user_id,guild_id,datetime,reason):
         self.cursor.execute('''INSERT INTO warning(user_id,guild_id,datetime,reason) VALUES(?,?,?,?)''',
                             (user_id,guild_id,datetime,reason))
+    def insertFile(self,file_id,type,reference_id,file_name,file_type,data):
+        self.cursor.execute('''INSERT INTO file(file_id,type,reference_id,file_name,file_type,data) VALUES(?,?,?,?,?,?)''',
+                            (file_id,type,reference_id,file_name,file_type,data))
+
+
 
     def select(self,query):
         return self.cursor.execute(query).fetchall()
+    def getMaxFileID(self):
+        value = self.cursor.execute('''SELECT MAX(file_id) FROM file''').fetchall()
+        return value[0][0] if value[0][0] != None else 0
+
+
 
     def updateChannelLastMessage(self,channel_id,message_time):
         self.db.execute('''UPDATE text_channel set last_message = ? WHERE channel_id = ?''',
                         (message_time,channel_id))
+
+            

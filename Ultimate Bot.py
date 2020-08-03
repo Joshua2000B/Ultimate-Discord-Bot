@@ -82,10 +82,17 @@ class MyClient(discord.Client):
 
 
     async def addGuild(self,guild):
-        # Add guild
         print("New guild:",str(guild))
+        # Add icon
+        next_file_id = None
+        if(guild.icon != None):
+            data = await guild.icon_url_as(format=None,static_format='png',size=1024).read()
+            next_file_id = self.db.getMaxFileID()+1
+            if(not self.db.fileExists('guild_icon',guild.id,data)):
+                self.db.insertFile(next_file_id,'guild_icon',guild.id,guild.name,'gif' if guild.is_icon_animated() else 'png',data)
+        # Add guild
         if(not self.db.guildExists(guild.id)):
-            self.db.insertGuild(guild.id,guild.name)
+            self.db.insertGuild(guild.id,guild.name,next_file_id)
 
         # Add Users and Members of server
         for member in guild.members:
@@ -104,9 +111,14 @@ class MyClient(discord.Client):
 
     async def addUser(self,user):
         print("New user:",str(user),user.id)
+        # Add Avatar
+        data = await user.avatar_url_as(format=None,static_format="png",size=1024).read()
+        next_file_id = self.db.getMaxFileID()+1
+        if(not self.db.fileExists('avatar',user.id,data)):
+            self.db.insertFile(next_file_id,'avatar',user.id,str(user),'gif' if user.is_avatar_animated() else 'png',data)
         # Add User
         if(not self.db.userExists(user.id)):
-            self.db.insertUser(user.id,user.name,user.discriminator,1 if user.bot else 0,sqlite3.Binary(await user.avatar_url.read()))
+            self.db.insertUser(user.id,user.name,user.discriminator,int(user.bot),next_file_id)
     
     async def addMember(self,member):
         # Add member
@@ -146,19 +158,28 @@ class MyClient(discord.Client):
 
     async def addEmoji(self,emoji):
         # Check if Emoji or PartialEmoji
+        next_file_id = None
         if(type(emoji) == discord.PartialEmoji):
-            try:
-                data = sqlite3.Binary(await emoji.url.read())
+            try: # Insert File
+                next_file_id = self.db.getMaxFileID()+1
+                data = await emoji.url.read()
+                if(not self.db.fileExists('emoji',emoji.id,data)):
+                    self.db.insertFile(next_file_id,'emoji',emoji.id,emoji.name,'gif' if emoji.animated else 'png',data)
             except discord.errors.DiscordException:
-                data = None
-            self.db.insertPartialEmoji(emoji.id,emoji.name,int(emoji.animated),data)
+                next_file_id = None
+            self.db.insertPartialEmoji(emoji.id,emoji.name,int(emoji.animated),next_file_id)
         else:
             # Add Guild
             if(not self.db.guildExists(emoji.guild_id)):
                 await self.addGuild(emoji.guild)
             # Add emoji
+            # Insert File
+            next_file_id = self.db.getMaxFileID()+1
+            data = await emoji.url.read()
+            if(not self.db.fileExists('emoji',emoji.id,data)):
+                self.db.insertFile(next_file_id,'emoji',emoji.id,emoji.name,'gif' if emoji.animated else 'png',data)
             if(not self.db.emojiExists(emoji.id)):
-                self.db.insertEmoji(emoji.id,emoji.guild_id,emoji.name,int(emoji.animated),sqlite3.Binary(await emoji.url.read()))
+                self.db.insertEmoji(emoji.id,emoji.guild_id,emoji.name,int(emoji.animated),next_file_id)
 
     async def addReaction(self,reaction):
         # Add Guild
@@ -196,6 +217,7 @@ class MyClient(discord.Client):
             await self.addEmoji(raw_reaction.emoji)
         if(not self.db.reactionExists(raw_reaction.emoji.id,raw_reaction.user_id,raw_reaction.message_id)):
             self.db.insertReaction(raw_reaction.emoji.id,raw_reaction.user_id,raw_reaction.message_id)
+    
         
 
         
