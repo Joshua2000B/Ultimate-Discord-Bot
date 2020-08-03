@@ -236,14 +236,18 @@ class MyClient(discord.Client):
         #
         # Add Emoji
         if(raw_reaction.emoji.is_unicode_emoji()):
-            if(not self.db.emojiExists(ord(raw_reaction.emoji.name)) and self.db.messageExists(raw_reaction.message_id)):
-                await self.addUnicodeEmoji(raw_reaction.emoji.name)
+            if(not self.db.emojiExists(ord(raw_reaction.emoji.name[0])) and self.db.messageExists(raw_reaction.message_id)):
+                await self.addUnicodeEmoji(raw_reaction.emoji.name[0])
         else:
             if(not self.db.emojiExists(raw_reaction.emoji.id) and self.db.messageExists(raw_reaction.message_id)):
                 await self.addEmoji(raw_reaction.emoji)
         # Add Reaction
-        if(not self.db.reactionExists(raw_reaction.emoji.id,raw_reaction.user_id,raw_reaction.message_id)):
-            self.db.insertReaction(raw_reaction.emoji.id,raw_reaction.user_id,raw_reaction.message_id)
+        if(raw_reaction.emoji.is_unicode_emoji()):
+            if(not self.db.reactionExists(ord(raw_reaction.emoji.name[0]),raw_reaction.user_id,raw_reaction.message_id)):
+                self.db.insertReaction(ord(raw_reaction.emoji.name[0]),raw_reaction.user_id,raw_reaction.message_id)
+        else:
+            if(not self.db.reactionExists(raw_reaction.emoji.id,raw_reaction.user_id,raw_reaction.message_id)):
+                self.db.insertReaction(raw_reaction.emoji.id,raw_reaction.user_id,raw_reaction.message_id)
     
         
 
