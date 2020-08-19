@@ -5,7 +5,7 @@ import sqlite3
 
 from Database import DiscordDB
 
-PROPERTY_LIST = []
+PROPERTY_LIST = [
     "commands_channel",
     "mod_commands_channel",
     "announcement_channel",
@@ -51,7 +51,7 @@ class MyClient(discord.Client):
     async def scanForDatabase(self,message):
         #self.db.start()
 
-        isdm = message.channel.type == discord.DMChannel
+        isdm = type(message.channel) == discord.DMChannel
 
         if(not self.db.messageExists(message.id) and not isdm): # Check for new message
             await self.addMessage(message)
