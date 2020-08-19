@@ -1,5 +1,8 @@
 # TOKEN
-TOKEN.txt
+TOKEN*.txt
+
+# Visual Studio
+.vs/
 
 # SQL
 *.db3

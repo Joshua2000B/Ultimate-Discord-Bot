@@ -15,6 +15,14 @@ CREATE TABLE IF NOT EXISTS "guild" (
 	PRIMARY KEY("guild_id")
 )''')
         self.cursor.execute('''
+CREATE TABLE IF NOT EXISTS "guild_property" (
+	"guild_id"	INTEGER,
+	"property"	TEXT,
+	"value"	TEXT,
+	FOREIGN KEY("guild_id") REFERENCES "guild",
+	PRIMARY KEY("guild_id","property")
+)''')
+        self.cursor.execute('''
 CREATE TABLE IF NOT EXISTS "user" (
 	"user_id"	INTEGER,
 	"username"	TEXT,
@@ -89,9 +97,10 @@ CREATE TABLE IF NOT EXISTS "member" (
 	"nickname"	TEXT,
 	"last_warning"	TEXT,
 	"last_message"	TEXT,
-	PRIMARY KEY("user_id","guild_id"),
+	"has_left"	INTEGER,
+	FOREIGN KEY("guild_id") REFERENCES "guild",
 	FOREIGN KEY("user_id") REFERENCES "user",
-	FOREIGN KEY("guild_id") REFERENCES "guild"
+	PRIMARY KEY("user_id","guild_id")
 )''')
         self.cursor.execute('''
 CREATE TABLE IF NOT EXISTS "reaction" (
@@ -146,6 +155,9 @@ CREATE TABLE IF NOT EXISTS "file" (
     def fileExists(self,type,reference_id,data):
         return len(self.cursor.execute('''SELECT file_id FROM file WHERE type = ? AND reference_id = ? AND data = ?''',
                                        (type,reference_id,data,)).fetchall()) > 0
+    def propertyExists(self,guild_id,property):
+        return len(self.cursor.execute('''SELECT value FROM guild_property WHERE guild_id = ? AND property = ?''',
+                                       (guild_id,property)).fetchall()) > 0
 
 
 
@@ -164,9 +176,9 @@ CREATE TABLE IF NOT EXISTS "file" (
     def insertGuild(self,guild_id,name,file_id):
         self.cursor.execute('''INSERT INTO guild(guild_id,name,file_id) VALUES(?,?,?)''',
                             (guild_id,name,file_id))
-    def insertMember(self,user_id,guild_id,nickname):
-        self.cursor.execute('''INSERT INTO member(user_id,guild_id,nickname,last_warning,last_message) VALUES(?,?,?,null,null)''',
-                            (user_id,guild_id,nickname))
+    def insertMember(self,user_id,guild_id,nickname,has_left):
+        self.cursor.execute('''INSERT INTO member(user_id,guild_id,nickname,last_warning,last_message,has_left) VALUES(?,?,?,null,null,?)''',
+                            (user_id,guild_id,nickname,has_left))
     def insertMessage(self,message_id,guild_id,channel_id,user_id,type,content,sent,has_file):
         self.cursor.execute('''INSERT INTO message(message_id,guild_id,channel_id,user_id,type,content,sent,was_deleted,has_file) VALUES(?,?,?,?,?,?,?,0,?)''',
                             (message_id,guild_id,channel_id,user_id,type,content,sent,has_file))
@@ -190,17 +202,53 @@ CREATE TABLE IF NOT EXISTS "file" (
 
     def select(self,query):
         return self.cursor.execute(query).fetchall()
+
+
     def getMaxFileID(self):
         value = self.cursor.execute('''SELECT MAX(file_id) FROM file''').fetchall()
         return value[0][0] if value[0][0] != None else 0
+    def getNumOfWarningsForMember(self,user_id,guild_id):
+        value = self.cursor.execute('''SELECT COUNT(datetime) FROM warning WHERE user_id = ? AND guild_id = ?''',
+                                    (user_id,guild_id)).fetchall()
+        return value[0][0] if value[0][0] != None else 0
+    def getGuildPropertyValue(self,guild_id,property):
+        value = self.cursor.execute('''SELECT value FROM guild_property WHERE guild_id = ? AND property = ?''',
+                                    (guild_id,property)).fetchall()
+        try:
+            return int(value[0][0])
+        except TypeError:
+            return value[0][0]
 
 
 
     def updateChannelLastMessage(self,channel_id,message_time):
-        self.db.execute('''UPDATE text_channel set last_message = ? WHERE channel_id = ?''',
+        self.db.execute('''UPDATE text_channel SET last_message = ? WHERE channel_id = ?''',
                         (message_time,channel_id))
     def updateMemberLastMessage(self,user_id,guild_id,message_time):
-        self.db.execute('''UPDATE member set last_message = ? WHERE user_id = ? AND guild_id = ?''',
+        self.db.execute('''UPDATE member SET last_message = ? WHERE user_id = ? AND guild_id = ?''',
                         (message_time,user_id,guild_id))
+    def updateMemberLastWarning(self,user_id,guild_id,message_time):
+        self.db.execute(''''UPDATE member SET last_warning = ? WHERE user_id = ? AND guild_id = ?''',
+                        (message_time,user_id,guild_id))
+    def updateGuildProperty(self,guild_id,property,value):
+        self.db.execute('''UPDATE guild_property SET value = ? WHERE guild_id = ? AND property = ?''',
+                        (value,guild_id,property))
 
-            
+
+    def addDefaultGuildProperties(self,channel_id):
+        self.db.execute('''INSERT INTO guild_property(guild_id,property,value) VALUES(?,"commands_channel",null)''',
+                        (channel_id,))
+        self.db.execute('''INSERT INTO guild_property(guild_id,property,value) VALUES(?,"mod_commands_channel",null)''',
+                        (channel_id,))
+        self.db.execute('''INSERT INTO guild_property(guild_id,property,value) VALUES(?,"announcement_channel",null)''',
+                        (channel_id,))
+        self.db.execute('''INSERT INTO guild_property(guild_id,property,value) VALUES(?,"kick_warning_num",3)''',
+                        (channel_id,))
+        self.db.execute('''INSERT INTO guild_property(guild_id,property,value) VALUES(?,"ban_warning_num",5)''',
+                        (channel_id,))
+        self.db.execute('''INSERT INTO guild_property(guild_id,property,value) VALUES(?,"warning_reset_days",30)''',
+                        (channel_id,))
+        self.db.execute('''INSERT INTO guild_property(guild_id,property,value) VALUES(?,"banned_words",null)''',
+                        (channel_id,))
+        self.db.execute('''INSERT INTO guild_property(guild_id,property,value) VALUES(?,"timezone",null)''',
+                        (channel_id,))
