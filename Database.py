@@ -255,3 +255,7 @@ CREATE TABLE IF NOT EXISTS "file" (
                         (channel_id,))
         self.db.execute('''INSERT INTO guild_property(guild_id,property,value) VALUES(?,"timezone",null)''',
                         (channel_id,))
+        self.db.execute('''INSERT INTO guild_property(guild_id,property,value) VALUES(?,"welcome_message",null)''',
+                        (channel_id,))
+        self.db.execute('''INSERT INTO guild_property(guild_id,property,value) VALUES(?,"leave_message",null)''',
+                        (channel_id,))

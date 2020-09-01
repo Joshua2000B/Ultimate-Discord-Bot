@@ -87,9 +87,11 @@ class MyClient(discord.Client):
 
     #ON MEMBER LEAVE
     async def on_member_remove(self,member):
-        
         self.db.updateMemberIsInGuild(member.id,member.guild.id,1)
         self.db.commit()
+
+        if(member.guild.system_channel != None and member.guild.system_channel.permissions_for(member.guild.me).send_messages):
+            msg = self.db.getGuildPropertyValue(member.guild.id,"leave_message")
 
 
     #ON MESSAGE
@@ -192,8 +194,8 @@ ban_warning_num :: The number of warnings a user must accrue before they are ban
 warning_reset_days :: The number of days that must past for a user without gaining any new warnings for all old warnings to be forgiven. Set to 0 to disable.
 banned_words :: A comma separated list of words and phrases that the bot will moderate for.
 timezone :: The timezone of the server. This is currently unused.
-welcome_message :: The message I will DM new members of the server when they join.
-leave_message :: The message I will post to the announcement channel (if one is set) when a member leaves the server.
+welcome_message :: The message I will DM new members of the server when they join. Use %m to mention the user, and %u to use their username.
+leave_message :: The message I will post to the announcement channel (if one is set) when a member leaves the server. Use %u to use the user's username
 ```""")
         elif(command[1] not in PROPERTY_LIST):
             await message.channel.send("Could not find server propety `"+command[1]+"`. Use `/property all` to view all properties I can set.")
