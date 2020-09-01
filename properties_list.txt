@@ -1,0 +1,11 @@
+commands_channel int DEFAULT: None
+mod_commands_channel int DEFAULT: None
+announcement_channel int DEFAULT: None
+general_channel int DEFAULT: None
+kick_warning_num int DEFAULT: 3
+ban_warning_num int DEFAULT: 5
+warning_reset_days int DEFAULT: 30
+banned_words text DEFAULT: None
+timezone text DEFAULT: None // THIS IS GOING TO BE A HUGE PAIN
+welcome_message DEFAULT: None
+leave_message DEFAULT: None

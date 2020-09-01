@@ -15,6 +15,7 @@ PROPERTY_LIST = [
     "banned_words",
     "timezone"
     "welcome_message"
+    "leave_message"
     ]
 
 #Helper functions
@@ -67,6 +68,30 @@ class MyClient(discord.Client):
         self.db.commit()
 
 
+
+    #ON MEMBER JOIN
+    async def on_member_join(self,member):
+        if(self.db.memberExists(member.id,member.guild.id)):
+            self.db.updateMemberIsInGuild(member.id,member.guild.id,0)
+        else:
+            if(not self.userExists(member.id)):
+                self.addUser(member)
+            self.addMember(member)
+        self.db.commit()
+        try:
+            msg = self.db.getGuildPropertyValue(member.guild.id,"welcome_message")
+            if(msg != None):
+                await member.channel.send(msg)
+        except discord.errors.Forbidden:
+            pass
+
+    #ON MEMBER LEAVE
+    async def on_member_remove(self,member):
+        
+        self.db.updateMemberIsInGuild(member.id,member.guild.id,1)
+        self.db.commit()
+
+
     #ON MESSAGE
     async def on_message(self,message):
         #print(message.content)
@@ -93,7 +118,6 @@ class MyClient(discord.Client):
             await self.set_property(message)
 
     #COMMANDS
-
     async def help(self,message):
         await message.channel.send("Stay tuned for more details!")
 
@@ -131,6 +155,7 @@ class MyClient(discord.Client):
         if(ban_num != None and warns >= ban_num and message.guild.me.guild_permissions.ban_members):
             await message.channel.send(user.mention + " has been banned for gathering too many warnings")
             await message.guild.ban(user,delete_message_days=0,reason = "User accrued too many warnings")
+            self.db.updateMemberIsInGuild(user.id,message.guild.id,1)
             try:
                 await message.author.send("You have been kicked for accruing too many warnings.")
             except discord.errors.Forbidden:
@@ -138,6 +163,7 @@ class MyClient(discord.Client):
         elif(kick_num != None and warns == kick_num and message.guild.me.guild_permissions.kick_members):
             await message.channel.send(user.mention + " has been kicked for gathering too many warnings")
             await message.guild.kick(user,reason = "User accrued too many warnings")
+            self.db.updateMemberIsInGuild(user.id,message.guild.id,1)
             try:
                 await message.author.send("You have been banned for accruing too many warnings.")
             except discord.errors.Forbidden:
@@ -167,6 +193,7 @@ warning_reset_days :: The number of days that must past for a user without gaini
 banned_words :: A comma separated list of words and phrases that the bot will moderate for.
 timezone :: The timezone of the server. This is currently unused.
 welcome_message :: The message I will DM new members of the server when they join.
+leave_message :: The message I will post to the announcement channel (if one is set) when a member leaves the server.
 ```""")
         elif(command[1] not in PROPERTY_LIST):
             await message.channel.send("Could not find server propety `"+command[1]+"`. Use `/property all` to view all properties I can set.")
@@ -313,7 +340,7 @@ welcome_message :: The message I will DM new members of the server when they joi
     async def addMember(self,member):
         # Add member
         if(not self.db.memberExists(member.id,member.guild.id)):
-            self.db.insertMember(member.id,member.guild.id,member.nick,int(False))
+            self.db.insertMember(member.id,member.guild.id,member.nick,0)
 
     async def addTextChannel(self,channel):
         # Add guild

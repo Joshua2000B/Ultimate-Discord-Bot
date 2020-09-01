@@ -233,6 +233,9 @@ CREATE TABLE IF NOT EXISTS "file" (
     def updateGuildProperty(self,guild_id,property,value):
         self.db.execute('''UPDATE guild_property SET value = ? WHERE guild_id = ? AND property = ?''',
                         (value,guild_id,property))
+    def updateMemberIsInGuild(self,user_id,guild_id,has_left):
+        self.db.execute('''UPDATE member SET has_left = ? WHERE user_id = ? AND guild_id = ?''',
+                        (has_left,user_id,guild_id))
 
 
     def addDefaultGuildProperties(self,channel_id):
