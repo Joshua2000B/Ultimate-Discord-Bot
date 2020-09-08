@@ -29,8 +29,9 @@ CREATE TABLE IF NOT EXISTS "user" (
 	"discriminator"	INTEGER,
 	"is_bot"	INTEGER,
 	"file_id"	INTEGER,
-	PRIMARY KEY("user_id"),
-	FOREIGN KEY("file_id") REFERENCES "file"
+	"last_listened_to"	TEXT,
+	FOREIGN KEY("file_id") REFERENCES "file",
+	PRIMARY KEY("user_id")
 )''')
         self.cursor.execute('''
 CREATE TABLE IF NOT EXISTS "text_channel" (
@@ -121,6 +122,17 @@ CREATE TABLE IF NOT EXISTS "file" (
 	"data"	BLOB,
 	PRIMARY KEY("file_id")
 )''')
+        self.cursor.execute('''
+CREATE TABLE IF NOT EXISTS "spotify_song" (
+	"track_id"	TEXT,
+	"played"	INTEGER,
+	"title"	TEXT,
+	"artist"	TEXT,
+	"album"	TEXT,
+	"file_id"	TEXT,
+	PRIMARY KEY("track_id"),
+	FOREIGN KEY("file_id") REFERENCES "file"
+)''')
 
     def start(self):
         self.cursor.execute("BEGIN")
@@ -158,7 +170,9 @@ CREATE TABLE IF NOT EXISTS "file" (
     def propertyExists(self,guild_id,property):
         return len(self.cursor.execute('''SELECT value FROM guild_property WHERE guild_id = ? AND property = ?''',
                                        (guild_id,property)).fetchall()) > 0
-
+    def spotifySongExists(self,track_id):
+        return len(self.cursor.execute('''SELECT track_id FROM spotify_song WHERE track_id = ?''',
+                                       (track_id,)).fetchall()) > 0
 
 
     def insertDMMessage(self,message_id,user_id,content,sent,has_file):
@@ -197,6 +211,9 @@ CREATE TABLE IF NOT EXISTS "file" (
     def insertFile(self,file_id,type,reference_id,file_name,file_type,data):
         self.cursor.execute('''INSERT INTO file(file_id,type,reference_id,file_name,file_type,data) VALUES(?,?,?,?,?,?)''',
                             (file_id,type,reference_id,file_name,file_type,data))
+    def insertSpotifySong(self,track_id,title,artist,album,file_id):
+        self.cursor.execute('''INSERT INTO spotify_song(track_id,played,title,artist,album,file_id) VALUES(?,1,?,?,?,?)''',
+                            (track_id,title,artist,album,file_id))
 
 
 
@@ -207,6 +224,10 @@ CREATE TABLE IF NOT EXISTS "file" (
     def getMaxFileID(self):
         value = self.cursor.execute('''SELECT MAX(file_id) FROM file''').fetchall()
         return value[0][0] if value[0][0] != None else 0
+    def getFileID(self,type,reference_id,data):
+        value = self.cursor.execute('''SELECT file_id FROM file WHERE type = ? AND reference_id = ? AND data = ?''',
+                                    (type,reference_id,data)).fetchall()
+        return value[0][0]
     def getNumOfWarningsForMember(self,user_id,guild_id):
         value = self.cursor.execute('''SELECT COUNT(datetime) FROM warning WHERE user_id = ? AND guild_id = ?''',
                                     (user_id,guild_id)).fetchall()
@@ -216,8 +237,11 @@ CREATE TABLE IF NOT EXISTS "file" (
                                     (guild_id,property)).fetchall()
         try:
             return int(value[0][0])
-        except TypeError:
+        except (TypeError,ValueError):
             return value[0][0]
+    def getUserLastListenedTo(self,user_id):
+        return self.cursor.execute('''SELECT last_listened_to FROM user WHERE user_id = ?''',
+                                   (user_id,)).fetchall()[0][0]
 
 
 
@@ -236,6 +260,14 @@ CREATE TABLE IF NOT EXISTS "file" (
     def updateMemberIsInGuild(self,user_id,guild_id,has_left):
         self.db.execute('''UPDATE member SET has_left = ? WHERE user_id = ? AND guild_id = ?''',
                         (has_left,user_id,guild_id))
+    def updateUserLastListenedTo(self,user_id,track_id):
+        self.db.execute('''UPDATE user SET last_listened_to = ? WHERE user_id = ?''',
+                        (track_id,user_id))
+    
+    
+    def incrementSongListenCount(self,track_id):
+        self.db.execute('''UPDATE spotify_song SET played = played + 1 WHERE track_id = ?''',
+                        (track_id,))
 
 
     def addDefaultGuildProperties(self,channel_id):

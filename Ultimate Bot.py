@@ -2,6 +2,7 @@ import discord
 import asyncio
 import datetime
 import sqlite3
+import requests
 
 from Database import DiscordDB
 
@@ -13,8 +14,8 @@ PROPERTY_LIST = [
     "ban_warning_num",
     "warning_reset_days",
     "banned_words",
-    "timezone"
-    "welcome_message"
+    "timezone",
+    "welcome_message",
     "leave_message"
     ]
 
@@ -64,8 +65,9 @@ class MyClient(discord.Client):
     #ON REACTION ADD
     async def on_raw_reaction_add(self,raw_reaction):
         #self.db.start()
-        await self.addRawReaction(raw_reaction)
-        self.db.commit()
+        if(self.get_channel(raw_reaction.channel_id) != None):
+            await self.addRawReaction(raw_reaction)
+            self.db.commit()
 
 
 
@@ -81,7 +83,8 @@ class MyClient(discord.Client):
         try:
             msg = self.db.getGuildPropertyValue(member.guild.id,"welcome_message")
             if(msg != None):
-                await member.channel.send(msg)
+                msg = msg.replace("%u",str(member)).replace("%m",member.mention)
+                await member.send(msg)
         except discord.errors.Forbidden:
             pass
 
@@ -92,6 +95,33 @@ class MyClient(discord.Client):
 
         if(member.guild.system_channel != None and member.guild.system_channel.permissions_for(member.guild.me).send_messages):
             msg = self.db.getGuildPropertyValue(member.guild.id,"leave_message")
+            if(msg != None):
+                msg = msg.replace("%u",str(member))
+                await member.guild.system_channel.send(msg)
+
+    #ON MEMBER UPDATE
+    async def on_member_update(self,before,after):
+        for act in after.activities:
+            print(str(act))
+            if(type(act) == discord.Spotify):
+                print("Someone is listening to",act.title)
+                if(act.track_id != self.db.getUserLastListenedTo(after.id)):
+                    if(not self.db.spotifySongExists(act.track_id)):
+                        
+                        print("New song:",act.title,"-",act.track_id)
+                        data = requests.get(act.album_cover_url).content
+                        next_id = self.db.getMaxFileID()+1
+                        if(not self.db.fileExists('album',None,data)):
+                            self.db.insertFile(next_id,"album",None,act.album,"jfif",data)
+                        else:
+                            next_id = self.db.getFileID("album",None,data)
+
+                        self.db.insertSpotifySong(act.track_id,act.title,act.artist,act.album,next_id)
+                    else:
+                        self.db.incrementSongListenCount(act.track_id)
+                    self.db.updateUserLastListenedTo(after.id,act.track_id)
+        self.db.commit()
+
 
 
     #ON MESSAGE
@@ -259,10 +289,21 @@ leave_message :: The message I will post to the announcement channel (if one is 
         elif(command[1] == "timezone"):
             await message.channel.send("Still being implemented")
             return
+        # Value type: Message string
+        elif(command[1] == "welcome_message" or command[1] == "leave_message"):
+            if(command[1] == "leave_message"):
+                if(not message.guild.system_channel.permissions_for(message.guild.me).send_messages):
+                    await message.channel.send("I need permission to send messages in "+message.guild.system_channel.mention+" to post leaving messages.")
+                    return
+
+
+        else:
+            await message.channel.send("I shouldn't be here");
 
         self.db.updateGuildProperty(message.guild.id,command[1],value)
         self.db.commit()
         await message.channel.send("Successfully set " + command[1])
+
 
 
     #WHEN READY
@@ -292,6 +333,7 @@ leave_message :: The message I will post to the announcement channel (if one is 
                     await self.addMessage(message)
     
         self.db.commit()
+        print("Done scanning for changes")
     #DISCONNECTION
     #async def on_disconnect(self):
     #    print("Bot has disconnected from server at time:",datetime.now())
@@ -391,19 +433,25 @@ leave_message :: The message I will post to the announcement channel (if one is 
         # Add DM Message
         if(not self.db.dmMessageExists(message.id)):
             self.db.insertDMMessage(message.id,message.author.id,message.content,str(message.created_at),1 if len(message.attachments) > 0 else 0)
+        for attachment in message.attachments:
+            filename = attachment.filename.split('.')
+            data = await attachment.read()
+            if(not self.db.fileExists('dm_attachment',message.id,data)):
+                self.db.insertFile(self.db.getMaxFileID()+1,'dm_attachment',message.id,".".join(filename[:-1]),filename[-1],data)
 
     async def addEmoji(self,emoji):
         # Check if Emoji or PartialEmoji
         next_file_id = None
         if(type(emoji) == discord.PartialEmoji):
-            try: # Insert File
-                next_file_id = self.db.getMaxFileID()+1
-                data = await emoji.url.read()
-                if(not self.db.fileExists('emoji',emoji.id,data)):
-                    self.db.insertFile(next_file_id,'emoji',emoji.id,emoji.name,'gif' if emoji.animated else 'png',data)
-            except discord.errors.DiscordException:
-                next_file_id = None
-            self.db.insertPartialEmoji(emoji.id,emoji.name,int(emoji.animated),next_file_id)
+            data = requests.get("https://cdn.discordapp.com/emojis/"+str(emoji.id)).content
+            next_file_id = self.db.getMaxFileID()+1
+            if(not self.db.fileExists('emoji',emoji.id,data)):
+                self.db.insertFile(next_file_id,'emoji',emoji.id,emoji.name,'gif' if emoji.animated else 'png',data)
+            else:
+                next_file_id = self.db.getFileID('emoji',emoji.id,data)
+            if(not self.db.emojiExists(emoji.id)):
+                self.db.insertPartialEmoji(emoji.id,emoji.name,int(emoji.animated),next_file_id)
+
         else:
             # Add Guild
             if(not self.db.guildExists(emoji.guild_id)):
@@ -414,6 +462,8 @@ leave_message :: The message I will post to the announcement channel (if one is 
             data = await emoji.url.read()
             if(not self.db.fileExists('emoji',emoji.id,data)):
                 self.db.insertFile(next_file_id,'emoji',emoji.id,emoji.name,'gif' if emoji.animated else 'png',data)
+            else:
+                next_file_id = self.db.getFileID('emoji',emoji.id,data)
             if(not self.db.emojiExists(emoji.id)):
                 self.db.insertEmoji(emoji.id,emoji.guild_id,emoji.name,int(emoji.animated),next_file_id)
 
